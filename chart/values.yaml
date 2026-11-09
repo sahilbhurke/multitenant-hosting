@@ -1,0 +1,27 @@
+tenant: user1
+image:
+  repository: multitenant-site
+  tag: v1
+  pullPolicy: IfNotPresent
+domains:
+  - user1.localtest.me
+clusterIssuer: selfsigned-issuer
+probes:
+  readinessPath: /ready
+  livenessPath: /health
+resources:
+  requests: { cpu: 100m, memory: 64Mi }
+  limits:   { cpu: 250m, memory: 128Mi }
+autoscaling:
+  minReplicas: 2
+  maxReplicas: 5
+  cpuUtilization: 50
+  memoryUtilization: 70
+quota:
+  requestsCpu: "1"
+  limitsCpu: "2"
+  requestsMemory: 1Gi
+  limitsMemory: 2Gi
+  pods: "10"
+kafka:
+  bootstrap: host.docker.internal:9092

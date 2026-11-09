@@ -1,0 +1,57 @@
+name: deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bad_deploy:
+        description: "Simulate a failing release (breaks readiness probe) to demo rollback"
+        type: boolean
+        default: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/multitenant-site
+
+jobs:
+  build:
+    runs-on: self-hosted
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and push
+        run: |
+          docker build -t $IMAGE:${{ github.sha }} app/
+          docker push $IMAGE:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix:
+        user: [user1, user2, user3]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Helm deploy (atomic = auto rollback on failure)
+        id: deploy
+        run: |
+          EXTRA=""
+          if [ "${{ inputs.bad_deploy }}" = "true" ]; then
+            EXTRA="--set probes.readinessPath=/does-not-exist"
+          fi
+          helm upgrade --install ${{ matrix.user }} ./chart \
+            -n ${{ matrix.user }} --create-namespace \
+            -f tenants/${{ matrix.user }}.yaml \
+            --set image.repository=$IMAGE \
+            --set image.tag=${{ github.sha }} \
+            $EXTRA --atomic --wait --timeout 90s
+      - name: Event - WebsiteCreated
+        if: success()
+        run: ./scripts/publish-event.sh WebsiteCreated ${{ matrix.user }} ${{ github.sha }}
+      - name: Rollback evidence + event
+        if: failure()
+        run: |
+          helm history ${{ matrix.user }} -n ${{ matrix.user }} || true
+          ./scripts/publish-event.sh DeploymentRolledBack ${{ matrix.user }} ${{ github.sha }}

@@ -1,0 +1,3 @@
+tenant: user1
+domains:
+  - user1.localtest.me
