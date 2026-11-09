@@ -15,7 +15,7 @@ Let's Encrypt in a real cluster).
 kubectl apply -f k8s/cluster-issuer.yaml
 docker build -t multitenant-site:v1 app/
 for u in user1 user2 user3; do
-  helm upgrade --install $u ./chart -n $u --create-namespace -f tenants/$u.yaml --atomic --wait
+  helm upgrade --install $u ./chart -n $u --create-namespace -f tenants/$u.yaml --rollback-on-failure --wait
 done
 curl -k https://user1.localtest.me
 ```
@@ -25,7 +25,7 @@ HPA per tenant: 2-5 replicas, CPU 50% / memory 70%. ResourceQuota caps each tena
 PDB keeps at least 1 pod up during rollouts and node drains.
 
 ## Rollback
-`helm upgrade --atomic --wait` rolls back automatically when readiness fails. Manual: `helm rollback <user> -n <user>`.
+`helm upgrade --rollback-on-failure --wait` rolls back automatically when readiness fails. Manual: `helm rollback <user> -n <user>`.
 Demo: run the workflow with `bad_deploy=true`.
 
 ## Kafka

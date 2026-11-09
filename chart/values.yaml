@@ -10,8 +10,8 @@ probes:
   readinessPath: /ready
   livenessPath: /health
 resources:
-  requests: { cpu: 100m, memory: 64Mi }
-  limits:   { cpu: 250m, memory: 128Mi }
+  requests: { cpu: 100m, memory: 128Mi }
+  limits:   { cpu: 250m, memory: 256Mi }
 autoscaling:
   minReplicas: 2
   maxReplicas: 5

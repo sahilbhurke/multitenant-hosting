@@ -46,7 +46,7 @@ jobs:
             -f tenants/${{ matrix.user }}.yaml \
             --set image.repository=$IMAGE \
             --set image.tag=${{ github.sha }} \
-            $EXTRA --atomic --wait --timeout 90s
+            $EXTRA --rollback-on-failure --wait --timeout 90s
       - name: Event - WebsiteCreated
         if: success()
         run: ./scripts/publish-event.sh WebsiteCreated ${{ matrix.user }} ${{ github.sha }}
