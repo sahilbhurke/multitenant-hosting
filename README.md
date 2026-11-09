@@ -30,3 +30,23 @@ Demo: run the workflow with `bad_deploy=true`.
 
 ## Kafka
 `docker compose -f kafka/docker-compose.yml up -d`; consume with `scripts/consume-events.sh`.
+
+## Scaling strategy and resource allocation
+- Each tenant runs in its own namespace with a ResourceQuota (1 CPU / 1Gi requested, 2 CPU / 2Gi limits, 10 pods).
+- Each pod requests 100m CPU / 128Mi and is limited to 250m / 256Mi. HPA targets 50% CPU and 70% memory, 2 to 5 replicas.
+- Memory requests were raised from 64Mi to 128Mi after the HPA scaled on idle memory (85% of the request).
+- A PodDisruptionBudget (minAvailable 1) and RollingUpdate with maxUnavailable 0 keep the site up during releases.
+- Load test: `hey -z 4m -c 40 https://user2.localtest.me:8443/load` scaled user2 from 2 to 5 replicas (CPU peaked at 244% of target).
+
+## Network isolation
+A default-deny ingress NetworkPolicy plus an allow rule for the ingress controller. A pod in user2 cannot reach user1 (wget times out).
+
+## Rollback
+`helm upgrade --rollback-on-failure --wait` reverts automatically when readiness fails. Demo: run the workflow with `bad_deploy=true`.
+`helm history` shows the failed revision followed by "Rollback to N", and the site keeps serving the previous version.
+
+## Notes for local setup
+- TLS uses a cert-manager self-signed ClusterIssuer. In production, replace it with a Let's Encrypt ClusterIssuer (needs a public domain).
+- Domains use localtest.me (resolves to 127.0.0.1); ingress is reached via `kubectl port-forward ... 8443:443`.
+- The runner is self-hosted so the pipeline can reach the local cluster.
+- Monitoring: kube-prometheus-stack with the operator pinned to v0.94.2 (v0.95.1 had no arm64 image).
