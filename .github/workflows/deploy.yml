@@ -18,12 +18,14 @@ jobs:
     permissions: { contents: read, packages: write }
     steps:
       - uses: actions/checkout@v4
-      - name: Login to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Build and push
+      - name: Build image
+        run: docker build -t $IMAGE:${{ github.sha }} app/
+      - name: Push to GHCR
         run: |
-          docker build -t $IMAGE:${{ github.sha }} app/
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker push $IMAGE:${{ github.sha }}
+      - name: Load image into local cluster
+        run: docker save $IMAGE:${{ github.sha }} | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 
   deploy:
     needs: build
@@ -34,8 +36,7 @@ jobs:
         user: [user1, user2, user3]
     steps:
       - uses: actions/checkout@v4
-      - name: Helm deploy (atomic = auto rollback on failure)
-        id: deploy
+      - name: Helm deploy (auto rollback on failure)
         run: |
           EXTRA=""
           if [ "${{ inputs.bad_deploy }}" = "true" ]; then
@@ -50,7 +51,7 @@ jobs:
       - name: Event - WebsiteCreated
         if: success()
         run: ./scripts/publish-event.sh WebsiteCreated ${{ matrix.user }} ${{ github.sha }}
-      - name: Rollback evidence + event
+      - name: Rollback evidence and event
         if: failure()
         run: |
           helm history ${{ matrix.user }} -n ${{ matrix.user }} || true
